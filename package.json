@@ -1,0 +1,23 @@
+{
+  "name": "carburante",
+  "version": "0.0.1",
+  "description": "Trova i distributori più vicini ed economici a partire dai tuoi indirizzi (dati Osservaprezzi MIMIT).",
+  "type": "module",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "scripts": {
+    "fetch-data": "node scripts/fetch-data.ts",
+    "build-tiles": "node scripts/build-tiles.ts",
+    "should-build": "node scripts/should-build.ts",
+    "dry-run": "node scripts/dry-run.ts data/anagrafica_impianti_attivi.csv data/prezzo_alle_8.csv",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.scripts.json --noEmit"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260722.1",
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0",
+    "wrangler": "^4.80.0"
+  }
+}

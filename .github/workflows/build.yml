@@ -1,0 +1,47 @@
+name: build-e-deploy
+
+on:
+  schedule:
+    # Il MIMIT pubblica verso le 08:45 ora italiana (media recente). Primo tentativo
+    # ~09:00 IT, poi ogni ora, finché il file del giorno non compare. In UTC l'orario
+    # scivola di 1h tra ora legale e solare, e il cron di GitHub è sempre UTC: per
+    # questo copriamo un intervallo e il "gate" fa il deploy solo quando il file è fresco.
+    - cron: '0 7-13 * * *' # ogni ora, 07:00–13:00 UTC
+  workflow_dispatch: {} # esecuzione manuale dal tab Actions
+
+concurrency:
+  group: build-deploy
+  cancel-in-progress: false
+
+env:
+  # Completare dopo il primo deploy con l'URL reale (serve al gate per sapere
+  # cosa è già online). Finché è vuoto/errato, il gate costruisce sempre.
+  SITE_URL: ''
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24' # esecuzione diretta dei .ts (type stripping)
+      - run: npm ci
+
+      - id: gate
+        name: Il CSV è più recente di quello online?
+        run: node scripts/should-build.ts
+
+      - name: Scarica i CSV MIMIT
+        if: steps.gate.outputs.build == 'true'
+        run: npm run fetch-data
+
+      - name: Costruisci le tessere
+        if: steps.gate.outputs.build == 'true'
+        run: npm run build-tiles
+
+      - name: Deploy su Cloudflare
+        if: steps.gate.outputs.build == 'true'
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

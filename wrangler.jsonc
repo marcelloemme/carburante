@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "carburante",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-07-01",
+  // La PWA e le tessere (public/) sono servite come asset statici dalla CDN.
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

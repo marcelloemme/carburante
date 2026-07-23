@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.wrangler/
+.dev.vars
+.env
+# CSV MIMIT scaricati in locale per il dry-run (non versionare, cambiano ogni giorno)
+data/*.csv
+# tessere generate dal build (rigenerate a ogni run, non versionare)
+public/tiles/
+public/manifest.json
+out/
+*.log
+.DS_Store

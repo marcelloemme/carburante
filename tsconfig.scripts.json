@@ -1,0 +1,10 @@
+{
+  // Gli script Node (scripts/) e la pipeline condivisa usano i tipi di Node,
+  // il Worker (src/worker) usa i tipi di Cloudflare: due config separate per
+  // evitare conflitti tra i due set di tipi globali.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["scripts", "src/pipeline"]
+}
