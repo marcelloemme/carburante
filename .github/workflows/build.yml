@@ -4,11 +4,12 @@ on:
   push:
     branches: [main] # ogni modifica a codice/design su main → deploy immediato
   schedule:
-    # Il MIMIT pubblica verso le 08:45 ora italiana (media recente). Primo tentativo
-    # ~09:00 IT, poi ogni ora, finché il file del giorno non compare. In UTC l'orario
-    # scivola di 1h tra ora legale e solare, e il cron di GitHub è sempre UTC: per
-    # questo copriamo un intervallo e il "gate" fa il deploy solo quando il file è fresco.
-    - cron: '0 7-13 * * *' # ogni ora, 07:00–13:00 UTC (minimo consentito da GitHub: 5 min)
+    # Il MIMIT pubblica verso le 08:45 ora italiana. Proviamo ogni 15 minuti in una
+    # finestra ampia: il "gate" fa il deploy solo quando il CSV è più recente di quello
+    # online, quindi finché non ci riesce (dati non ancora usciti, o deploy fallito)
+    # ritenta ogni 15 min; appena riesce, i tentativi successivi sono no-op. In UTC
+    # l'orario del MIMIT scivola di 1h tra ora legale e solare (il cron è sempre UTC).
+    - cron: '*/15 6-13 * * *' # ogni 15 min, 06:00–13:59 UTC
   workflow_dispatch:
     inputs:
       force:
@@ -32,8 +33,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24' # esecuzione diretta dei .ts (type stripping)
-      - run: npm ci
 
+      # Il gate gira PRIMA di npm ci: should-build.ts usa solo Node, niente
+      # dipendenze. Così i tentativi ogni 15 min che non devono pubblicare
+      # costano pochi secondi (checkout + node), non un intero npm ci.
       - id: gate
         name: Serve ricostruire?
         run: |
@@ -45,6 +48,10 @@ jobs:
           else
             node scripts/should-build.ts
           fi
+
+      - name: Installa le dipendenze
+        if: steps.gate.outputs.build == 'true'
+        run: npm ci
 
       - name: Scarica i CSV MIMIT (con retry)
         if: steps.gate.outputs.build == 'true'
