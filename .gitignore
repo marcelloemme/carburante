@@ -11,3 +11,6 @@ public/manifest.json
 out/
 *.log
 .DS_Store
+
+# stato locale di fetch-data (Last-Modified/etag), rigenerato ogni volta
+data/meta.json
