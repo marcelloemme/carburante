@@ -1,12 +1,16 @@
 name: build-e-deploy
 
 on:
-  schedule:
-    # Il MIMIT pubblica verso le 08:45 ora italiana (media recente). Primo tentativo
-    # ~09:00 IT, poi ogni ora, finché il file del giorno non compare. In UTC l'orario
-    # scivola di 1h tra ora legale e solare, e il cron di GitHub è sempre UTC: per
-    # questo copriamo un intervallo e il "gate" fa il deploy solo quando il file è fresco.
-    - cron: '0 7-13 * * *' # ogni ora, 07:00–13:00 UTC
+  # NB: la schedulazione è disattivata finché non è configurato il secret
+  # CLOUDFLARE_API_TOKEN (altrimenti il deploy fallisce). Riattivare togliendo il
+  # commento qui sotto una volta messo il token.
+  #
+  # schedule:
+  #   # Il MIMIT pubblica verso le 08:45 ora italiana (media recente). Primo tentativo
+  #   # ~09:00 IT, poi ogni ora, finché il file del giorno non compare. In UTC l'orario
+  #   # scivola di 1h tra ora legale e solare, e il cron di GitHub è sempre UTC: per
+  #   # questo copriamo un intervallo e il "gate" fa il deploy solo quando il file è fresco.
+  #   - cron: '0 7-13 * * *' # ogni ora, 07:00–13:00 UTC
   workflow_dispatch: {} # esecuzione manuale dal tab Actions
 
 concurrency:
