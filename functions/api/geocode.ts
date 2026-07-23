@@ -1,10 +1,11 @@
-// Proxy verso Nominatim (OpenStreetMap) per trasformare un indirizzo digitato in
-// coordinate. Sta dietro al nostro Worker per tre motivi:
-//  1. Nominatim non manda header CORS: il browser non può chiamarlo direttamente.
-//  2. La policy d'uso richiede un User-Agent identificativo e di NON fare bulk.
-//  3. Cache dei risultati (Cache API) per rispettare la policy e andare veloci.
+// Pages Function: /api/geocode — proxy verso Nominatim (OpenStreetMap).
+// Sta dietro a Cloudflare Pages perché Nominatim non manda header CORS (il browser
+// non può chiamarlo direttamente), la sua policy vuole un User-Agent identificativo,
+// e cachiamo i risultati (Cache API) per rispettarla e andare veloci.
 
-import type { Env } from './index.ts';
+interface Env {
+  GEOCODER_UA?: string;
+}
 
 const DEFAULT_UA = 'carburante (+https://github.com/marcelloemme/carburante)';
 const CACHE_TTL = 60 * 60 * 24 * 30; // 30 giorni
@@ -23,7 +24,8 @@ function json(body: unknown, status = 200, extraHeaders?: Record<string, string>
   });
 }
 
-export async function handleGeocode(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+export const onRequestGet: PagesFunction<Env> = async (context) => {
+  const { request, env } = context;
   const q = (new URL(request.url).searchParams.get('q') ?? '').trim();
   if (q.length < 3) return json({ error: 'query troppo corta (min 3 caratteri)' }, 400);
 
@@ -64,7 +66,6 @@ export async function handleGeocode(request: Request, env: Env, ctx: ExecutionCo
   const res = json({ q, results }, 200, {
     'cache-control': `public, max-age=${CACHE_TTL}`,
   });
-  // Salva in cache senza bloccare la risposta.
-  ctx.waitUntil(cache.put(cacheKey, res.clone()));
+  context.waitUntil(cache.put(cacheKey, res.clone()));
   return res;
-}
+};

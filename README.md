@@ -41,14 +41,20 @@ Chiave di join: `idImpianto`.
 
 ## Architettura
 
-- **Ingest (Worker + Cron)**: la mattina, GET condizionale ai due CSV; se cambiati,
-  parse → join → normalizza carburanti → scarta coord invalide → calcola prezzo min
-  per carburante (self/servito) → **suddivide in tessere geografiche** e le pubblica
-  su R2 con un `manifest.json` (versione + hash per tessera).
-- **Client (PWA)**: preferiti in IndexedDB (restano sul dispositivo). Per una
-  ricerca scarica **solo le tessere vicine**, salta quelle con hash invariato
-  (cache), calcola distanze (Haversine) e ordina per prezzo **in locale**. Mappa con
-  Leaflet/MapLibre + tile OSM.
+Sito su **Cloudflare Pages** (https://carburante.pages.dev). Il build pesante non gira
+a runtime (il piano gratuito dei Worker ha 10 ms di CPU/invocazione, il parsing ne usa
+~200): lo fa **GitHub Actions** ogni mattina.
+
+- **Ingest (GitHub Actions)**: la mattina, `should-build` fa una HEAD condizionale ai
+  CSV; se il `Last-Modified` è più recente di quello già online, `fetch-data` +
+  `build-tiles` fanno parse → join → normalizza carburanti → scarta coord invalide →
+  calcola prezzo min per carburante (self/servito) → **suddivide in tessere** con un
+  `manifest.json` (versione + hash per tessera), poi `wrangler pages deploy`.
+- **Runtime (Cloudflare Pages)**: serve la PWA e le tessere come **asset statici** su
+  CDN; l'unica logica server è `functions/api/geocode.ts` (proxy Nominatim con Cache API).
+- **Client (PWA)**: per una ricerca scarica **solo le tessere vicine**, salta quelle con
+  hash invariato (cache), calcola distanze (Haversine) e ordina per prezzo **in locale**.
+  (Prossimi passi: preferiti in IndexedDB, mappa Leaflet, service worker/offline.)
 
 ### Perché le tessere (e `TILE_DEG`)
 

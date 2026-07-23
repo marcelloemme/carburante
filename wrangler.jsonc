@@ -1,14 +1,8 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "carburante",
-  "main": "src/worker/index.ts",
   "compatibility_date": "2026-07-01",
-  // La PWA e le tessere (public/) sono servite come asset statici dalla CDN.
-  "assets": {
-    "directory": "./public",
-    "binding": "ASSETS"
-  },
-  "observability": {
-    "enabled": true
-  }
+  // Cloudflare Pages: gli asset statici stanno in public/, le API in functions/.
+  // Il build pesante (tessere) gira su GitHub Actions, non a runtime.
+  "pages_build_output_dir": "./public"
 }

@@ -44,8 +44,10 @@ jobs:
         if: steps.gate.outputs.build == 'true'
         run: npm run build-tiles
 
-      - name: Deploy su Cloudflare
+      - name: Deploy su Cloudflare Pages
         if: steps.gate.outputs.build == 'true'
-        run: npx wrangler deploy
+        run: npx wrangler pages deploy --branch main
         env:
+          # Token con permesso "Cloudflare Pages: Edit" + l'Account ID.
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

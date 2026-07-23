@@ -10,8 +10,8 @@
     "build-tiles": "node scripts/build-tiles.ts",
     "should-build": "node scripts/should-build.ts",
     "dry-run": "node scripts/dry-run.ts data/anagrafica_impianti_attivi.csv data/prezzo_alle_8.csv",
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "dev": "wrangler pages dev",
+    "deploy": "wrangler pages deploy",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.scripts.json --noEmit"
   },
   "devDependencies": {

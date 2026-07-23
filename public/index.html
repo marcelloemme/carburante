@@ -46,7 +46,8 @@
     li:last-child { border-bottom: 0; }
     .price { font-weight: 700; font-variant-numeric: tabular-nums; font-size: 1.05rem; }
     li.best .price { color: var(--best); }
-    .meta { color: var(--muted); font-size: .82rem; }
+    .meta { color: var(--fg); font-size: .9rem; }
+    .addr { color: var(--muted); font-size: .8rem; margin-top: .1rem; }
     .dist { color: var(--muted); font-size: .82rem; white-space: nowrap; margin-left: .6rem; }
     .status { color: var(--muted); font-size: .85rem; }
     footer { color: var(--muted); font-size: .75rem; text-align: center; margin-top: 1.5rem; }
@@ -189,7 +190,9 @@ async function search() {
     if (h === hits[0]) li.className = 'best';
     li.innerHTML =
       `<div><span class="price">${h.price.toFixed(3)} €</span>` +
-      `<div class="meta">${escapeHtml(h.st.b)} · ${escapeHtml(h.st.c)}</div></div>` +
+      `<div class="meta">${escapeHtml(h.st.b)} · ${escapeHtml(h.st.c)}</div>` +
+      (h.st.a ? `<div class="addr">${escapeHtml(h.st.a)}</div>` : '') +
+      `</div>` +
       `<span class="dist">${h.d.toFixed(1)} km</span>`;
     ul.appendChild(li);
   }

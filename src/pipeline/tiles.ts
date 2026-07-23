@@ -19,6 +19,7 @@ export interface Station {
   y: number; // lat
   x: number; // lon
   c: string; // comune
+  a: string; // indirizzo (testo libero MIMIT)
   // prezzi per carburante canonico: [self, servito] (null se assente)
   p: Partial<Record<CanonFuel, { s: number | null; r: number | null }>>;
 }
@@ -86,8 +87,11 @@ export function buildDataset(anagraficaText: string, prezzoText: string): BuildR
     bandiera: columnIndex(anag.header, 'Bandiera'),
     tipo: columnIndex(anag.header, 'Tipo Impianto'),
   };
-  // Coda: ancorate a destra (robuste al separatore dentro Nome Impianto/Indirizzo).
+  // Coda: ancorate a destra (robuste al separatore dentro Nome Impianto).
+  // L'Indirizzo sta dopo il Nome (dove capita il separatore in più), quindi
+  // ancorato dalla coda resta leggibile anche nelle righe malformate.
   const aTail = {
+    indirizzo: tailOffset(anag.header, 'Indirizzo'),
     comune: tailOffset(anag.header, 'Comune'),
     lat: tailOffset(anag.header, 'Latitudine'),
     lon: tailOffset(anag.header, 'Longitudine'),
@@ -108,6 +112,7 @@ export function buildDataset(anagraficaText: string, prezzoText: string): BuildR
       y: Math.round(lat * 1e6) / 1e6,
       x: Math.round(lon * 1e6) / 1e6,
       c: t(fromEnd(row, aTail.comune)),
+      a: t(fromEnd(row, aTail.indirizzo)),
       p: {},
     });
   }
