@@ -231,6 +231,7 @@ function renderList(hits, rightHtml) {
       `<div><span class="price">${h.price.toFixed(3)} €</span>` +
       `<div class="meta">${escapeHtml(h.st.b)} · ${escapeHtml(h.st.c)}</div>` +
       (h.st.a ? `<div class="addr">${escapeHtml(h.st.a)}</div>` : '') +
+      `<a class="maplink" href="${gmapsLink(h.st.y, h.st.x)}" target="_blank" rel="noopener">↗ Google Maps</a>` +
       `</div>${rightHtml(h)}`;
     ul.appendChild(li);
   }

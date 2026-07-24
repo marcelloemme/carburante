@@ -32,39 +32,47 @@ function simplify(coords: number[][]): number[][] {
   return out;
 }
 
-const MAJOR = /(^|\b)(A\d+|SS\s?\d+|SP\s?\d+|SR\s?\d+|RA\s?\d+|E\d+|Autostrad|Raccordo|Tangenzial|Superstrad|Diramazion)/i;
-// ORS dà il nome come "Autostrada Adriatica, A14": preferiamo la sigla (A14, SS623…).
-const REF_RE = /\b(A\d+[a-z]*|SS\s?\d+|SP\s?\d+|SR\s?\d+|RA\s?\d+|E\d+|T\d+)\b/i;
-function shortRoad(name: string): string {
-  const m = name.match(REF_RE);
-  return m?.[1] ? m[1].replace(/\s+/g, '') : name;
+// Sigle strada (autostrade, statali, provinciali, raccordi…). Globale: un nome
+// può contenerne più d'una (es. "Svincolo A4 - A31, A31").
+const REF_G = /\b(?:A\d+[a-z]*|SS\s?\d+|SP\s?\d+|SR\s?\d+|RA\s?\d+|E\d+|T\d+)\b/gi;
+// ORS dà il nome come "Autostrada della Valdastico, A31": la strada reale è
+// l'ULTIMA sigla (non lo svincolo di provenienza).
+function roadRef(name: string): string | null {
+  const all = name.match(REF_G);
+  const last = all?.[all.length - 1];
+  return last ? last.replace(/\s+/g, '').toUpperCase() : null;
 }
 
-/** Costruisce "A4 · A26 · SS25" dalle istruzioni passo-passo di ORS. */
+/** Riassunto delle strade principali percorse, in ordine — es. "SP349 · A31 · A35". */
 function summarizeRoads(segments: Array<{ steps?: Array<{ name?: string; distance?: number }> }>): string {
   const order: string[] = [];
   const dist: Record<string, number> = {};
+  const isRef: Record<string, boolean> = {};
   for (const seg of segments) {
     for (const st of seg.steps ?? []) {
       const raw = (st.name ?? '').trim();
       if (!raw || raw === '-') continue;
-      const name = shortRoad(raw);
-      if (!(name in dist)) { order.push(name); }
-      dist[name] = (dist[name] ?? 0) + (st.distance ?? 0);
+      const ref = roadRef(raw);
+      const label = ref ?? raw;
+      if (!(label in dist)) { order.push(label); isRef[label] = ref !== null; }
+      dist[label] = (dist[label] ?? 0) + (st.distance ?? 0);
     }
   }
-  const major = order.filter((n) => MAJOR.test(n));
-  const pool = major.length ? major : order;
   const byDist = (a: string, b: string) => (dist[b] ?? 0) - (dist[a] ?? 0);
-  // strade rilevanti (> 2 km), le prime 4 per distanza, mostrate in ordine di percorrenza
-  let picked = pool.filter((n) => (dist[n] ?? 0) > 2000).sort(byDist).slice(0, 4);
-  // Se nessuna strada supera i 2 km, mostra comunque la più lunga (mai vuoto).
+  // Tutte le strade CON SIGLA percorse per almeno 3 km, in ordine di percorrenza:
+  // completo ma senza le tante vie urbane brevi.
+  let picked = order.filter((n) => isRef[n] && (dist[n] ?? 0) >= 3000);
+  // Percorso tutto urbano (nessuna sigla) → la più lunga, per non restare vuoti.
   if (!picked.length) {
     const longest = [...order].sort(byDist)[0];
     if (longest) picked = [longest];
   }
-  const pick = new Set(picked);
-  return order.filter((n) => pick.has(n)).join(' · ');
+  // Tetto di sicurezza: se sono davvero tante, tieni le 8 più lunghe (ma in ordine).
+  if (picked.length > 8) {
+    const keep = new Set([...picked].sort(byDist).slice(0, 8));
+    picked = picked.filter((n) => keep.has(n));
+  }
+  return picked.join(' · ');
 }
 
 interface OrsFeature {
@@ -101,7 +109,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   if (![ay, ax, by, bx].every(Number.isFinite)) return json({ error: 'coordinate mancanti/non valide' }, 400);
 
   const rk = (n: number) => n.toFixed(4);
-  const cacheKey = new Request(`https://route.internal/?a=${rk(ay)},${rk(ax)}&b=${rk(by)},${rk(bx)}`);
+  const cacheKey = new Request(`https://route.internal/v2?a=${rk(ay)},${rk(ax)}&b=${rk(by)},${rk(bx)}`);
   const cache = caches.default;
   const cached = await cache.match(cacheKey);
   if (cached) return cached;
