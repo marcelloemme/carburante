@@ -148,9 +148,10 @@ async function searchSingle() {
   for (const st of arrays.flat()) {
     const d = haversine(p.lat, p.lon, st.y, st.x);
     if (d > radius) continue;
-    const price = st.p[fuel] ? (self ? st.p[fuel].s : st.p[fuel].r) : null;
+    const pr = st.p[fuel];
+    const price = pr ? (self ? pr.s : pr.r) : null;
     if (price == null) continue;
-    hits.push({ st, price, dist: d });
+    hits.push({ st, price, dist: d, day: self ? pr.sd : pr.rd });
   }
   hits.sort((a, b) => a.price - b.price);
   $('status').textContent =
@@ -208,12 +209,13 @@ async function searchRoute() {
   const arrays = await Promise.all(keys.map(fetchTile));
   const hits = [];
   for (const st of arrays.flat()) {
-    const price = st.p[fuel] ? (self ? st.p[fuel].s : st.p[fuel].r) : null;
+    const pr = st.p[fuel];
+    const price = pr ? (self ? pr.s : pr.r) : null;
     if (price == null) continue;
     const [px, py] = toXY(st.y, st.x, lat0);
     const { detour, progress } = detourProgress(px, py, poly, cum);
     if (detour > maxDetour) continue;
-    hits.push({ st, price, detour, progress });
+    hits.push({ st, price, detour, progress, day: self ? pr.sd : pr.rd });
   }
   hits.sort((a, b) => a.price - b.price);
   $('status').textContent =
@@ -241,7 +243,8 @@ function renderList(hits, rightHtml) {
       `<div><span class="price">${h.price.toFixed(3)} €</span>` +
       `<div class="meta">${escapeHtml(h.st.b)} · ${escapeHtml(h.st.c)}</div>` +
       (h.st.a ? `<div class="addr">${escapeHtml(h.st.a)}</div>` : '') +
-      `<a class="maplink" href="${gmapsLink(h.st.y, h.st.x)}" target="_blank" rel="noopener">↗ Google Maps</a>` +
+      `<a class="maplink" href="${gmapsLink(h.st)}" target="_blank" rel="noopener">↗ Google Maps</a>` +
+      ageBadge(h.day) +
       `</div>${rightHtml(h)}`;
     ul.appendChild(li);
   }
@@ -249,9 +252,28 @@ function renderList(hits, rightHtml) {
 
 // ---------- mappa (Leaflet) ----------
 let map = null, mapLayer = null;
-function gmapsLink(lat, lon) {
-  // Link affidabile: usa le coordinate esatte, non il nome (che è una ragione sociale).
-  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
+function gmapsLink(st) {
+  // Ricerca del benzinaio (marchio + indirizzo + comune) CENTRATA sulle coordinate:
+  // Google lo aggancia alla scheda reale (più preciso delle sole coordinate quando
+  // queste sono imprecise) e lì l'utente vede anche se è aperto/chiuso.
+  const q = [st.b, st.a, st.c].filter(Boolean).join(' ');
+  return `https://www.google.com/maps/search/${encodeURIComponent(q)}/@${st.y},${st.x},16z`;
+}
+// Età del prezzo dalla data di comunicazione (giorni dall'epoch).
+function priceAgeDays(day) {
+  return day == null ? null : Math.floor(Date.now() / 86400000) - day;
+}
+function ageText(n) {
+  if (n == null) return '';
+  if (n <= 0) return 'oggi';
+  if (n === 1) return 'ieri';
+  return `${n} giorni fa`;
+}
+// Etichetta "comunicato N giorni fa" per l'elenco; evidenziata se il prezzo è vecchio.
+function ageBadge(day) {
+  const n = priceAgeDays(day);
+  if (n == null) return '';
+  return `<span class="age${n >= 5 ? ' old' : ''}">· comunicato ${ageText(n)}</span>`;
 }
 function ensureMap() {
   if (map) return;
@@ -284,10 +306,12 @@ function renderMap(hits, ctx) {
     let extra = '';
     if (ctx.kind === 'route') extra = `<br>${h.detour < 0.3 ? 'sul percorso' : '+' + h.detour.toFixed(1) + ' km fuori percorso'} · ${Math.round(h.progress)} km dalla partenza`;
     else if (h.dist != null) extra = `<br>a ${h.dist.toFixed(1)} km`;
+    const ageStr = ageText(priceAgeDays(h.day));
     const popup =
-      `<b>${h.price.toFixed(3)} €</b> ${fuel}<br>${escapeHtml(h.st.b)} · ${escapeHtml(h.st.c)}` +
+      `<b>${h.price.toFixed(3)} €</b> ${fuel}` + (ageStr ? ` <span style="color:#888">· ${ageStr}</span>` : '') +
+      `<br>${escapeHtml(h.st.b)} · ${escapeHtml(h.st.c)}` +
       (h.st.a ? `<br>${escapeHtml(h.st.a)}` : '') + extra +
-      `<br><a href="${gmapsLink(h.st.y, h.st.x)}" target="_blank" rel="noopener">↗ Apri in Google Maps</a>`;
+      `<br><a href="${gmapsLink(h.st)}" target="_blank" rel="noopener">↗ Apri in Google Maps</a>`;
     L.marker([h.st.y, h.st.x], { icon }).addTo(mapLayer).bindPopup(popup);
     bounds.push([h.st.y, h.st.x]);
   });

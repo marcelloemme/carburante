@@ -20,8 +20,9 @@ export interface Station {
   x: number; // lon
   c: string; // comune
   a: string; // indirizzo (testo libero MIMIT)
-  // prezzi per carburante canonico: [self, servito] (null se assente)
-  p: Partial<Record<CanonFuel, { s: number | null; r: number | null }>>;
+  // prezzi per carburante canonico. s/r = prezzo self/servito; sd/rd = giorno di
+  // comunicazione (giorni dall'epoch UTC) del prezzo mostrato → per l'"età".
+  p: Partial<Record<CanonFuel, { s: number | null; r: number | null; sd: number | null; rd: number | null }>>;
 }
 
 export interface BuildResult {
@@ -76,6 +77,14 @@ function tailOffset(header: string[], name: string): number {
 }
 const fromEnd = (row: string[], offset: number): string => row[row.length - offset] ?? '';
 
+/** "20/07/2026 21:00:05" → giorni dall'epoch UTC (per calcolare l'età lato client). */
+function dtComuDay(s: string): number | null {
+  const m = s.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  if (!m) return null;
+  const day = Date.UTC(+m[3]!, +m[2]! - 1, +m[1]!);
+  return Number.isFinite(day) ? Math.floor(day / 86400000) : null;
+}
+
 export function buildDataset(anagraficaText: string, prezzoText: string): BuildResult {
   const anag = parseCsv(anagraficaText);
   const prezzo = parseCsv(prezzoText);
@@ -125,6 +134,7 @@ export function buildDataset(anagraficaText: string, prezzoText: string): BuildR
   const pTail = {
     prezzo: tailOffset(prezzo.header, 'prezzo'),
     isSelf: tailOffset(prezzo.header, 'isSelf'),
+    dtComu: tailOffset(prezzo.header, 'dtComu'),
   };
 
   const unmappedFuel = new Map<string, number>();
@@ -148,9 +158,14 @@ export function buildDataset(anagraficaText: string, prezzoText: string): BuildR
     fuelCounts.set(canon, (fuelCounts.get(canon) ?? 0) + 1);
 
     const self = t(fromEnd(row, pTail.isSelf)) === '1';
-    const slot = (st.p[canon] ??= { s: null, r: null });
-    if (self) slot.s = slot.s === null ? price : Math.min(slot.s, price);
-    else slot.r = slot.r === null ? price : Math.min(slot.r, price);
+    const day = dtComuDay(t(fromEnd(row, pTail.dtComu)));
+    const slot = (st.p[canon] ??= { s: null, r: null, sd: null, rd: null });
+    // Teniamo il prezzo minimo per lato, e la sua data di comunicazione.
+    if (self) {
+      if (slot.s === null || price < slot.s) { slot.s = price; slot.sd = day; }
+    } else {
+      if (slot.r === null || price < slot.r) { slot.r = price; slot.rd = day; }
+    }
     priced.add(id);
   }
 
