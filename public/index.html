@@ -37,18 +37,37 @@
       padding: .6rem .9rem; border: 0; border-radius: 8px; cursor: pointer;
       background: var(--accent); color: var(--accent-fg); font-weight: 600;
     }
-    button.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); font-weight: 400; text-align: left; }
+    button.ghost {
+      display: block; width: 100%; margin: .3rem 0; background: transparent;
+      color: var(--fg); border: 1px solid var(--line); font-weight: 400; text-align: left;
+    }
     button.ghost:hover { border-color: var(--accent); }
     select { width: 100%; padding: .55rem; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); }
+
+    /* selettore modalità */
+    .modes { display: flex; gap: .4rem; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: .3rem; margin-bottom: 1rem; }
+    .modes button { flex: 1; background: transparent; color: var(--fg); font-weight: 600; border-radius: 7px; }
+    .modes button.active { background: var(--accent); color: var(--accent-fg); }
+
+    /* chip dei percorsi */
+    #routeChips { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .8rem; }
+    .chip { flex: 1 1 45%; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: .1rem;
+      background: var(--bg); border: 1px solid var(--line); color: var(--fg); border-radius: 9px; padding: .5rem .7rem; font-weight: 400; text-align: left; }
+    .chip.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+    .chip b { font-size: .88rem; }
+    .chip span { color: var(--muted); font-size: .78rem; }
+    #findRoutes { width: 100%; margin-top: .8rem; }
+    #findRoutes:disabled { opacity: .45; cursor: default; }
+
     .controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .6rem; margin-bottom: .8rem; }
     ul { list-style: none; margin: 0; padding: 0; }
-    li { display: flex; justify-content: space-between; align-items: baseline; padding: .55rem 0; border-bottom: 1px solid var(--line); }
+    li { display: flex; justify-content: space-between; align-items: baseline; padding: .55rem 0; border-bottom: 1px solid var(--line); gap: .6rem; }
     li:last-child { border-bottom: 0; }
     .price { font-weight: 700; font-variant-numeric: tabular-nums; font-size: 1.05rem; }
     li.best .price { color: var(--best); }
     .meta { color: var(--fg); font-size: .9rem; }
     .addr { color: var(--muted); font-size: .8rem; margin-top: .1rem; }
-    .dist { color: var(--muted); font-size: .82rem; white-space: nowrap; margin-left: .6rem; }
+    .dist { color: var(--muted); font-size: .82rem; text-align: right; flex: 0 0 auto; }
     .status { color: var(--muted); font-size: .85rem; }
     footer { color: var(--muted); font-size: .75rem; text-align: center; margin-top: 1.5rem; }
     a { color: var(--accent); }
@@ -59,7 +78,13 @@
   <h1>⛽ carburante</h1>
   <p class="sub">I distributori più vicini ed economici. Dati Osservaprezzi MIMIT, <span id="extraction">—</span>.</p>
 
-  <div class="card">
+  <div class="modes">
+    <button data-mode="single" class="active">Indirizzo</button>
+    <button data-mode="route">Tragitto</button>
+  </div>
+
+  <!-- MODALITÀ INDIRIZZO -->
+  <div class="card" id="singleCard">
     <label for="q">Indirizzo di partenza</label>
     <div class="row">
       <input id="q" type="text" placeholder="es. Via Roma 1, Milano" autocomplete="off" />
@@ -68,6 +93,27 @@
     <div id="candidates" style="margin-top:.7rem"></div>
   </div>
 
+  <!-- MODALITÀ TRAGITTO -->
+  <div class="card" id="routeCard" hidden>
+    <label for="qa">Partenza</label>
+    <div class="row">
+      <input id="qa" type="text" placeholder="es. Milano" autocomplete="off" />
+      <button id="goA" style="flex:0 0 auto">Cerca</button>
+    </div>
+    <div id="candA" style="margin-top:.5rem"></div>
+
+    <label for="qb" style="margin-top:.9rem">Arrivo</label>
+    <div class="row">
+      <input id="qb" type="text" placeholder="es. Roma" autocomplete="off" />
+      <button id="goB" style="flex:0 0 auto">Cerca</button>
+    </div>
+    <div id="candB" style="margin-top:.5rem"></div>
+
+    <button id="findRoutes" disabled>Trova percorsi</button>
+    <div id="routeChips"></div>
+  </div>
+
+  <!-- CONTROLLI + RISULTATI (condivisi) -->
   <div class="card" id="searchCard" hidden>
     <div class="controls">
       <div>
@@ -91,8 +137,9 @@
         </select>
       </div>
       <div>
-        <label for="radius">Raggio</label>
+        <label for="radius" id="radiusLabel">Raggio</label>
         <select id="radius">
+          <option value="1">1 km</option>
           <option value="3">3 km</option>
           <option value="5" selected>5 km</option>
           <option value="10">10 km</option>
@@ -106,142 +153,10 @@
   </div>
 
   <footer>
-    Prezzi comunicati dai gestori al MIMIT · geocoding © OpenStreetMap/Nominatim
+    Prezzi comunicati dai gestori al MIMIT · geocoding © OpenStreetMap/Nominatim · percorsi © openrouteservice.org
   </footer>
 </main>
 
-<script type="module">
-const FUEL_LABEL = {
-  benzina: 'Benzina', benzina_plus: 'Benzina premium', gasolio: 'Gasolio',
-  gasolio_plus: 'Gasolio premium', gpl: 'GPL', metano: 'Metano', gnl: 'GNL', hvo: 'HVO',
-};
-
-let manifest = null;
-const tileCache = new Map();
-let current = null; // { lat, lon, label }
-
-// --- geometria tessere (deve combaciare con src/pipeline/tiles.ts) ---
-// Blocco sempre almeno 3×3 attorno al punto (copre i casi di bordo/angolo); span
-// separati per lat/lon perché un grado di longitudine in Italia è più corto.
-function tilesForRadius(lat, lon, radiusKm, deg) {
-  const spanY = Math.max(1, Math.ceil(radiusKm / (deg * 111)));
-  const spanX = Math.max(1, Math.ceil(radiusKm / (deg * 111 * Math.cos(lat * Math.PI / 180))));
-  const ty = Math.floor(lat / deg), tx = Math.floor(lon / deg);
-  const keys = [];
-  for (let dy = -spanY; dy <= spanY; dy++)
-    for (let dx = -spanX; dx <= spanX; dx++) keys.push(`${ty + dy}_${tx + dx}`);
-  return keys;
-}
-function haversine(a1, o1, a2, o2) {
-  const R = 6371, dLat = (a2 - a1) * Math.PI / 180, dLon = (o2 - o1) * Math.PI / 180;
-  const x = Math.sin(dLat / 2) ** 2 +
-    Math.cos(a1 * Math.PI / 180) * Math.cos(a2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(x));
-}
-
-async function loadManifest() {
-  const r = await fetch('/manifest.json');
-  if (!r.ok) throw new Error('manifest non disponibile (build non ancora eseguito?)');
-  manifest = await r.json();
-  const el = document.getElementById('extraction');
-  if (manifest.sourceLastModified) {
-    // Orario reale di pubblicazione del MIMIT (la "foto" delle 8:00), in ora italiana.
-    const f = new Intl.DateTimeFormat('it-IT', {
-      timeZone: 'Europe/Rome', day: '2-digit', month: '2-digit', year: 'numeric',
-      hour: '2-digit', minute: '2-digit',
-    });
-    el.textContent = 'aggiornati il ' + f.format(new Date(manifest.sourceLastModified)).replace(',', ' alle');
-  } else if (manifest.extractionDate) {
-    el.textContent = 'estrazione ' + manifest.extractionDate;
-  }
-}
-
-async function fetchTile(key) {
-  if (tileCache.has(key)) return tileCache.get(key);
-  const r = await fetch(`/tiles/${key}.json`);
-  const arr = r.ok ? await r.json() : [];
-  tileCache.set(key, arr);
-  return arr;
-}
-
-async function geocode(q) {
-  const r = await fetch('/api/geocode?q=' + encodeURIComponent(q));
-  const data = await r.json();
-  return data.results || [];
-}
-
-async function search() {
-  if (!current || !manifest) return;
-  const fuel = document.getElementById('fuel').value;
-  const self = document.getElementById('mode').value === 's';
-  const radius = +document.getElementById('radius').value;
-  const status = document.getElementById('status');
-  status.textContent = 'Cerco…';
-
-  const keys = tilesForRadius(current.lat, current.lon, radius, manifest.tileDeg)
-    .filter((k) => manifest.tiles[k]);
-  const arrays = await Promise.all(keys.map(fetchTile));
-  const hits = [];
-  for (const st of arrays.flat()) {
-    const d = haversine(current.lat, current.lon, st.y, st.x);
-    if (d > radius) continue;
-    const pr = st.p[fuel];
-    const price = pr ? (self ? pr.s : pr.r) : null;
-    if (price == null) continue;
-    hits.push({ st, d, price });
-  }
-  hits.sort((a, b) => a.price - b.price);
-
-  status.textContent = `${hits.length} distributori con ${FUEL_LABEL[fuel]} ${self ? 'self' : 'servito'} entro ${radius} km da ${current.label.split(',')[0]}`;
-  const ul = document.getElementById('results');
-  ul.innerHTML = '';
-  for (const h of hits.slice(0, 30)) {
-    const li = document.createElement('li');
-    if (h === hits[0]) li.className = 'best';
-    li.innerHTML =
-      `<div><span class="price">${h.price.toFixed(3)} €</span>` +
-      `<div class="meta">${escapeHtml(h.st.b)} · ${escapeHtml(h.st.c)}</div>` +
-      (h.st.a ? `<div class="addr">${escapeHtml(h.st.a)}</div>` : '') +
-      `</div>` +
-      `<span class="dist">${h.d.toFixed(1)} km</span>`;
-    ul.appendChild(li);
-  }
-}
-
-function escapeHtml(s) { return String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
-
-async function onGo() {
-  const q = document.getElementById('q').value.trim();
-  const box = document.getElementById('candidates');
-  if (q.length < 3) { box.textContent = 'Scrivi almeno 3 caratteri.'; return; }
-  box.innerHTML = '<span class="status">Cerco l\'indirizzo…</span>';
-  try {
-    const results = await geocode(q);
-    if (!results.length) { box.innerHTML = '<span class="status">Nessun indirizzo trovato.</span>'; return; }
-    box.innerHTML = '';
-    for (const res of results) {
-      const b = document.createElement('button');
-      b.className = 'ghost';
-      b.style.cssText = 'display:block;width:100%;margin:.3rem 0';
-      b.textContent = res.label;
-      b.onclick = () => {
-        current = { lat: res.lat, lon: res.lon, label: res.label };
-        box.innerHTML = `<span class="status">📍 ${escapeHtml(res.label)}</span>`;
-        document.getElementById('searchCard').hidden = false;
-        search();
-      };
-      box.appendChild(b);
-    }
-  } catch (e) {
-    box.innerHTML = '<span class="status">Errore: ' + escapeHtml(e.message) + '</span>';
-  }
-}
-
-document.getElementById('go').addEventListener('click', onGo);
-document.getElementById('q').addEventListener('keydown', (e) => { if (e.key === 'Enter') onGo(); });
-for (const id of ['fuel', 'mode', 'radius']) document.getElementById(id).addEventListener('change', search);
-
-loadManifest().catch((e) => { document.getElementById('extraction').textContent = e.message; });
-</script>
+<script type="module" src="/app.js"></script>
 </body>
 </html>
