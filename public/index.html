@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#0b7285" />
   <title>carburante — distributori vicini ed economici</title>
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
   <style>
     :root {
       --bg: #f7f7f5; --card: #fff; --fg: #1a1a1a; --muted: #666;
@@ -69,6 +70,18 @@
     .addr { color: var(--muted); font-size: .8rem; margin-top: .1rem; }
     .dist { color: var(--muted); font-size: .82rem; text-align: right; flex: 0 0 auto; }
     .status { color: var(--muted); font-size: .85rem; }
+
+    /* toggle elenco/mappa + mappa */
+    .viewtoggle { display: inline-flex; gap: .3rem; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: .2rem; margin-bottom: .6rem; }
+    .viewtoggle button { padding: .3rem .8rem; background: transparent; color: var(--fg); font-weight: 600; font-size: .85rem; border-radius: 6px; }
+    .viewtoggle button.active { background: var(--accent); color: var(--accent-fg); }
+    #map { height: 60vh; min-height: 340px; border-radius: 10px; }
+    .pricepin { background: var(--card); border: 1px solid var(--accent); color: var(--fg); border-radius: 6px; padding: 1px 4px; font: 700 12px/1.3 system-ui, sans-serif; white-space: nowrap; box-shadow: 0 1px 3px rgba(0,0,0,.35); text-align: center; }
+    .pricepin.best { background: var(--best); color: #fff; border-color: var(--best); }
+    .centerpin { font-size: 22px; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0,0,0,.4)); }
+    .leaflet-popup-content { font: 13px/1.45 system-ui, sans-serif; margin: .6rem .8rem; }
+    .leaflet-popup-content a { color: #0b7285; font-weight: 600; }
+
     footer { color: var(--muted); font-size: .75rem; text-align: center; margin-top: 1.5rem; }
     a { color: var(--accent); }
   </style>
@@ -149,7 +162,12 @@
       </div>
     </div>
     <p class="status" id="status"></p>
+    <div class="viewtoggle">
+      <button data-view="list" class="active">Elenco</button>
+      <button data-view="map">Mappa</button>
+    </div>
     <ul id="results"></ul>
+    <div id="map" hidden></div>
   </div>
 
   <footer>
@@ -157,6 +175,7 @@
   </footer>
 </main>
 
+<script src="/vendor/leaflet/leaflet.js"></script>
 <script type="module" src="/app.js"></script>
 </body>
 </html>

@@ -6,11 +6,16 @@ const FUEL_LABEL = {
   gasolio_plus: 'Gasolio premium', gpl: 'GPL', metano: 'Metano', gnl: 'GNL', hvo: 'HVO',
 };
 
+// Quanti risultati mostriamo (stesso numero in elenco e su mappa, per non affollare).
+const MAX_RESULTS = 40;
+
 const state = {
   mode: 'single',
   manifest: null,
   single: { point: null },          // { lat, lon, label }
   route: { a: null, b: null, routes: [], selected: -1 },
+  view: 'list',                     // 'list' | 'map'
+  results: null,                    // { hits, ctx, rowRight }
 };
 const tileCache = new Map();
 const $ = (id) => document.getElementById(id);
@@ -139,8 +144,10 @@ async function searchSingle() {
   }
   hits.sort((a, b) => a.price - b.price);
   $('status').textContent =
-    `${hits.length} distributori con ${FUEL_LABEL[fuel]} ${self ? 'self' : 'servito'} entro ${radius} km da ${p.label.split(',')[0]}`;
-  renderList(hits, (h) => `<span class="dist">${h.dist.toFixed(1)} km</span>`);
+    `${hits.length} distributori con ${FUEL_LABEL[fuel]} ${self ? 'self' : 'servito'} entro ${radius} km da ${p.label.split(',')[0]}` +
+    (hits.length > MAX_RESULTS ? ` — mostro i ${MAX_RESULTS} più economici` : '');
+  state.results = { hits, ctx: { kind: 'single', center: p }, rowRight: (h) => `<span class="dist">${h.dist.toFixed(1)} km</span>` };
+  renderResults();
 }
 
 // ---------- modalità Tragitto ----------
@@ -200,18 +207,24 @@ async function searchRoute() {
   }
   hits.sort((a, b) => a.price - b.price);
   $('status').textContent =
-    `${hits.length} distributori con ${FUEL_LABEL[fuel]} ${self ? 'self' : 'servito'} entro ${maxDetour} km dal percorso (${rt.distanceKm} km)`;
-  renderList(hits, (h) => {
-    const dev = h.detour < 0.3 ? 'sul percorso' : `+${h.detour.toFixed(1)} km`;
-    return `<span class="dist">${Math.round(h.progress)} km dalla partenza<br><small>${dev}</small></span>`;
-  });
+    `${hits.length} distributori con ${FUEL_LABEL[fuel]} ${self ? 'self' : 'servito'} entro ${maxDetour} km dal percorso (${rt.distanceKm} km)` +
+    (hits.length > MAX_RESULTS ? ` — mostro i ${MAX_RESULTS} più economici` : '');
+  state.results = {
+    hits,
+    ctx: { kind: 'route', route: rt },
+    rowRight: (h) => {
+      const dev = h.detour < 0.3 ? 'sul percorso' : `+${h.detour.toFixed(1)} km`;
+      return `<span class="dist">${Math.round(h.progress)} km dalla partenza<br><small>${dev}</small></span>`;
+    },
+  };
+  renderResults();
 }
 
 // ---------- render lista condiviso ----------
 function renderList(hits, rightHtml) {
   const ul = $('results');
   ul.innerHTML = '';
-  for (const h of hits.slice(0, 40)) {
+  for (const h of hits.slice(0, MAX_RESULTS)) {
     const li = document.createElement('li');
     if (h === hits[0]) li.className = 'best';
     li.innerHTML =
@@ -221,6 +234,68 @@ function renderList(hits, rightHtml) {
       `</div>${rightHtml(h)}`;
     ul.appendChild(li);
   }
+}
+
+// ---------- mappa (Leaflet) ----------
+let map = null, mapLayer = null;
+function gmapsLink(lat, lon) {
+  // Link affidabile: usa le coordinate esatte, non il nome (che è una ragione sociale).
+  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
+}
+function ensureMap() {
+  if (map) return;
+  map = L.map('map', { scrollWheelZoom: true });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19, attribution: '© OpenStreetMap',
+  }).addTo(map);
+  mapLayer = L.layerGroup().addTo(map);
+}
+function renderMap(hits, ctx) {
+  ensureMap();
+  mapLayer.clearLayers();
+  const bounds = [];
+  if (ctx.kind === 'route' && ctx.route) {
+    L.polyline(ctx.route.geometry, { color: '#0b7285', weight: 5, opacity: 0.7 }).addTo(mapLayer);
+    for (const p of ctx.route.geometry) bounds.push(p);
+  }
+  if (ctx.kind === 'single' && ctx.center) {
+    L.marker([ctx.center.lat, ctx.center.lon], {
+      icon: L.divIcon({ className: '', html: '<div class="centerpin">📍</div>', iconSize: [24, 24], iconAnchor: [12, 24] }),
+    }).addTo(mapLayer).bindPopup(escapeHtml(ctx.center.label.split(',')[0]));
+    bounds.push([ctx.center.lat, ctx.center.lon]);
+  }
+  const fuel = FUEL_LABEL[$('fuel').value] || '';
+  hits.slice(0, MAX_RESULTS).forEach((h, i) => {
+    const icon = L.divIcon({
+      className: '', html: `<div class="pricepin${i === 0 ? ' best' : ''}">${h.price.toFixed(3)}</div>`,
+      iconSize: [46, 20], iconAnchor: [23, 20],
+    });
+    let extra = '';
+    if (ctx.kind === 'route') extra = `<br>${h.detour < 0.3 ? 'sul percorso' : '+' + h.detour.toFixed(1) + ' km fuori percorso'} · ${Math.round(h.progress)} km dalla partenza`;
+    else if (h.dist != null) extra = `<br>a ${h.dist.toFixed(1)} km`;
+    const popup =
+      `<b>${h.price.toFixed(3)} €</b> ${fuel}<br>${escapeHtml(h.st.b)} · ${escapeHtml(h.st.c)}` +
+      (h.st.a ? `<br>${escapeHtml(h.st.a)}` : '') + extra +
+      `<br><a href="${gmapsLink(h.st.y, h.st.x)}" target="_blank" rel="noopener">↗ Apri in Google Maps</a>`;
+    L.marker([h.st.y, h.st.x], { icon }).addTo(mapLayer).bindPopup(popup);
+    bounds.push([h.st.y, h.st.x]);
+  });
+  // Il container è appena diventato visibile: ricalcola le dimensioni e adatta la
+  // vista. Doppio tentativo (subito + dopo il layout/tile) e maxZoom di sicurezza.
+  const fit = () => {
+    map.invalidateSize();
+    if (bounds.length) map.fitBounds(bounds, { padding: [30, 30], maxZoom: 15, animate: false });
+  };
+  setTimeout(fit, 80);
+  setTimeout(fit, 350);
+}
+function renderResults() {
+  if (!state.results) return;
+  const isMap = state.view === 'map';
+  $('results').hidden = isMap;
+  $('map').hidden = !isMap;
+  if (isMap) renderMap(state.results.hits, state.results.ctx);
+  else renderList(state.results.hits, state.results.rowRight);
 }
 
 // Rilancia la ricerca attiva quando cambiano i controlli (carburante/modalità/raggio).
@@ -239,6 +314,12 @@ function setMode(mode) {
   $('results').innerHTML = '';
   $('status').textContent = '';
   $('radiusLabel').textContent = mode === 'route' ? 'Deviazione max' : 'Raggio';
+  // torna alla vista elenco a ogni cambio modalità
+  state.results = null;
+  state.view = 'list';
+  $('map').hidden = true;
+  $('results').hidden = false;
+  document.querySelectorAll('.viewtoggle button').forEach((b) => b.classList.toggle('active', b.dataset.view === 'list'));
 }
 
 function wire() {
@@ -258,6 +339,13 @@ function wire() {
   $('findRoutes').addEventListener('click', () => { $('searchCard').hidden = false; findRoutes(); });
 
   for (const id of ['fuel', 'mode', 'radius']) $(id).addEventListener('change', rerun);
+
+  // Toggle Elenco / Mappa
+  document.querySelectorAll('.viewtoggle button').forEach((b) => b.addEventListener('click', () => {
+    state.view = b.dataset.view;
+    document.querySelectorAll('.viewtoggle button').forEach((x) => x.classList.toggle('active', x.dataset.view === state.view));
+    renderResults();
+  }));
 }
 function refreshFindBtn() {
   $('findRoutes').disabled = !(state.route.a && state.route.b);
