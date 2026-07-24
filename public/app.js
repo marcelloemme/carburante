@@ -253,13 +253,13 @@ function renderList(hits, rightHtml) {
 // ---------- mappa (Leaflet) ----------
 let map = null, mapLayer = null;
 function gmapsLink(st) {
-  // Cerchiamo l'INDIRIZZO su Google Maps (via + CAP + comune, col marchio come
-  // contorno). NON usiamo più le coordinate come centro: nel MIMIT a volte sono
-  // sbagliate e ti portavano fuori strada; l'indirizzo di solito aggancia il posto
-  // giusto perché Google lo geolocalizza da solo. Coordinate solo se manca l'indirizzo.
-  const q = [st.b, st.a, st.c].filter(Boolean).join(' ').trim();
-  const query = q ? encodeURIComponent(q) : `${st.y},${st.x}`;
-  return `https://www.google.com/maps/search/?api=1&query=${query}`;
+  // Cerchiamo "distributore <indirizzo> <comune>" su Google Maps: NON usiamo il
+  // nome dell'azienda (spesso sbagliato o "Pompe Bianche") né le coordinate (nel
+  // MIMIT a volte mis-registrate). Così Google trova il benzinaio a quell'indirizzo
+  // qualunque sia la marca. Coordinate solo come fallback se manca l'indirizzo.
+  if (!st.a) return `https://www.google.com/maps/search/?api=1&query=${st.y},${st.x}`;
+  const q = ['distributore', st.a, st.c].filter(Boolean).join(' ');
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 }
 // Età del prezzo dalla data di comunicazione (giorni dall'epoch).
 function priceAgeDays(day) {
