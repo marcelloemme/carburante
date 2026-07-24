@@ -101,27 +101,18 @@
   <!-- MODALITÀ INDIRIZZO -->
   <div class="card" id="singleCard">
     <label for="q">Indirizzo di partenza</label>
-    <div class="row">
-      <input id="q" type="text" placeholder="es. Via Roma 1, Milano" autocomplete="off" />
-      <button id="go" style="flex:0 0 auto">Cerca</button>
-    </div>
-    <div id="candidates" style="margin-top:.7rem"></div>
+    <input id="q" type="text" placeholder="Inizia a scrivere un indirizzo…" autocomplete="off" />
+    <div id="candidates" style="margin-top:.5rem"></div>
   </div>
 
   <!-- MODALITÀ TRAGITTO -->
   <div class="card" id="routeCard" hidden>
     <label for="qa">Partenza</label>
-    <div class="row">
-      <input id="qa" type="text" placeholder="es. Milano" autocomplete="off" />
-      <button id="goA" style="flex:0 0 auto">Cerca</button>
-    </div>
+    <input id="qa" type="text" placeholder="Inizia a scrivere…" autocomplete="off" />
     <div id="candA" style="margin-top:.5rem"></div>
 
     <label for="qb" style="margin-top:.9rem">Arrivo</label>
-    <div class="row">
-      <input id="qb" type="text" placeholder="es. Roma" autocomplete="off" />
-      <button id="goB" style="flex:0 0 auto">Cerca</button>
-    </div>
+    <input id="qb" type="text" placeholder="Inizia a scrivere…" autocomplete="off" />
     <div id="candB" style="margin-top:.5rem"></div>
 
     <button id="findRoutes" disabled>Trova percorsi</button>

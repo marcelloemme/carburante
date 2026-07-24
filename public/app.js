@@ -102,13 +102,21 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 }
 
-// Riquadro candidati riusabile: geocodifica e lascia scegliere l'indirizzo.
-async function pickAddress(inputEl, boxEl, onPick) {
-  const q = inputEl.value.trim();
-  if (q.length < 3) { boxEl.textContent = 'Scrivi almeno 3 caratteri.'; return; }
-  boxEl.innerHTML = '<span class="status">Cerco l\'indirizzo…</span>';
-  try {
-    const results = await geocode(q);
+function debounce(fn, ms) {
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+
+// Suggerimenti indirizzo mentre si digita (debounce per non martellare il geocoder).
+function attachTypeahead(inputEl, boxEl, onPick) {
+  const run = async () => {
+    const q = inputEl.value.trim();
+    if (q.length < 3) { boxEl.innerHTML = ''; return; }
+    boxEl.innerHTML = '<span class="status">Cerco…</span>';
+    let results;
+    try { results = await geocode(q); }
+    catch { boxEl.innerHTML = '<span class="status">Errore di rete.</span>'; return; }
+    if (inputEl.value.trim() !== q) return; // l'utente ha continuato a digitare
     if (!results.length) { boxEl.innerHTML = '<span class="status">Nessun indirizzo trovato.</span>'; return; }
     boxEl.innerHTML = '';
     for (const res of results) {
@@ -121,9 +129,11 @@ async function pickAddress(inputEl, boxEl, onPick) {
       };
       boxEl.appendChild(b);
     }
-  } catch (e) {
-    boxEl.innerHTML = '<span class="status">Errore: ' + escapeHtml(e.message) + '</span>';
-  }
+  };
+  inputEl.addEventListener('input', debounce(run, 400));
+  inputEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); const b = boxEl.querySelector('button.ghost'); if (b) b.click(); }
+  });
 }
 
 // ---------- modalità Indirizzo ----------
@@ -326,17 +336,14 @@ function setMode(mode) {
 function wire() {
   document.querySelectorAll('.modes button').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
 
-  // Indirizzo singolo
-  $('go').addEventListener('click', () => pickAddress($('q'), $('candidates'), (p) => {
+  // Indirizzo singolo — suggerimenti mentre digiti
+  attachTypeahead($('q'), $('candidates'), (p) => {
     state.single.point = p; $('searchCard').hidden = false; searchSingle();
-  }));
-  $('q').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('go').click(); });
+  });
 
-  // Tragitto: partenza e arrivo
-  $('goA').addEventListener('click', () => pickAddress($('qa'), $('candA'), (p) => { state.route.a = p; refreshFindBtn(); }));
-  $('goB').addEventListener('click', () => pickAddress($('qb'), $('candB'), (p) => { state.route.b = p; refreshFindBtn(); }));
-  $('qa').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('goA').click(); });
-  $('qb').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('goB').click(); });
+  // Tragitto: partenza e arrivo — suggerimenti mentre digiti
+  attachTypeahead($('qa'), $('candA'), (p) => { state.route.a = p; refreshFindBtn(); });
+  attachTypeahead($('qb'), $('candB'), (p) => { state.route.b = p; refreshFindBtn(); });
   $('findRoutes').addEventListener('click', () => { $('searchCard').hidden = false; findRoutes(); });
 
   for (const id of ['fuel', 'mode', 'radius']) $(id).addEventListener('change', rerun);
